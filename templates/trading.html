@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Автоторговля</title>
+</head>
+<body>
+    <header>
+        <h1>Автоторговля</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Главная</a></li>
+                <li><a href="/dashboard.html">Дашборд</a></li>
+                <li><a href="/settings.html">Настройки</a></li>
+                <li><a href="/analysis.html">Анализ</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+
+
+
+        <section>
+            <h2>Управление автоторговлей</h2>
+            <div id="model-info" class="info-box">
+                <p><strong>Активная модель:</strong> <span id="active-model">Загрузка...</span></p>
+            </div>
+            <form id="auto-trade-form" class="form-box">
+                <label for="symbol">Торговая пара:</label>
+                <select id="symbol" class="form-control">
+                    <option value="BTC/USDT">BTC/USDT</option>
+                    <option value="ETH/USDT">ETH/USDT</option>
+                </select>
+                <label for="amount">Сумма:</label>
+                <input type="number" id="amount" step="0.01" class="form-control" placeholder="Введите сумму">
+                <button type="submit" class="primary-button">Запустить автоторговлю</button>
+            </form>
+            <div id="auto-trade-status" class="status-message"></div>
+        </section>
+
+
+
+
+
+        <section>
+            <h2>Управление автономной торговлей</h2>
+            <button id="start-autonomous-trading" class="primary-button">Запустить автономную торговлю</button>
+            <button id="stop-autonomous-trading" class="secondary-button">Остановить автономную торговлю</button>
+            <div id="autonomous-trading-status" class="status-message"></div>
+        </section>
+
+
+
+
+
+        <section>
+            <h2>Ручная торговля</h2>
+            <form id="manual-trade-form" class="form-box">
+                <label for="manual-symbol">Торговая пара:</label>
+                <select id="manual-symbol" class="form-control">
+                    <option value="BTC/USDT">BTC/USDT</option>
+                    <option value="ETH/USDT">ETH/USDT</option>
+                </select>
+                <label for="manual-amount">Сумма:</label>
+                <input type="number" id="manual-amount" step="0.01" class="form-control" placeholder="Введите сумму">
+                <button type="submit" class="primary-button">Совершить сделку</button>
+            </form>
+            <div id="manual-trade-result" class="status-message"></div>
+        </section>
+
+
+
+    </main>
+    <footer>
+        <p>© 2023 Торговый Бот</p>
+    </footer>
+    <script>
+        // Загрузка активной модели
+        async function loadActiveModel() {
+            try {
+                const response = await fetch("/settings/model-info");
+                const data = await response.json();
+                document.getElementById("active-model").textContent = data.name || "Не выбрана";
+            } catch (error) {
+                console.error("Ошибка загрузки активной модели:", error);
+                document.getElementById("active-model").textContent = "Ошибка";
+            }
+        }
+
+        // Обработка формы автоторговли
+        document.getElementById("auto-trade-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const symbol = document.getElementById("symbol").value;
+            const amount = document.getElementById("amount").value;
+            try {
+                const response = await fetch("/trading/auto_trade", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ symbol, amount })
+                });
+                const result = await response.json();
+                document.getElementById("auto-trade-status").textContent = result.message || "Автоторговля запущена!";
+            } catch (error) {
+                console.error("Ошибка запуска автоторговли:", error);
+                document.getElementById("auto-trade-status").textContent = "Ошибка запуска автоторговли.";
+            }
+        });
+
+        // Обработка формы ручной торговли
+        document.getElementById("manual-trade-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const symbol = document.getElementById("manual-symbol").value;
+            const amount = document.getElementById("manual-amount").value;
+            try {
+                const response = await fetch("/trading/trade", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ symbol, amount })
+                });
+                const result = await response.json();
+                document.getElementById("manual-trade-result").textContent = result.message || "Сделка выполнена!";
+            } catch (error) {
+                console.error("Ошибка выполнения сделки:", error);
+                document.getElementById("manual-trade-result").textContent = "Ошибка выполнения сделки.";
+            }
+        });
+
+        // Загрузка данных при загрузке страницы
+        document.addEventListener("DOMContentLoaded", loadActiveModel);
+    </script>
+
+
+
+    <script>
+        // Запуск автономной торговли
+        document.getElementById("start-autonomous-trading").addEventListener("click", async () => {
+            try {
+                const strategy = {
+                    symbol: "BTC/USDT",
+                    amount: 0.01,
+                    take_profit: 1.05,
+                    stop_loss: 0.95,
+                    data: []  // Здесь можно указать данные для модели
+                };
+                const response = await fetch("/trading/auto_trade?autonomous=true", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(strategy),
+                });
+                const result = await response.json();
+                document.getElementById("autonomous-trading-status").textContent = result.message || "Автономная торговля запущена!";
+            } catch (error) {
+                console.error("Ошибка запуска автономной торговли:", error);
+                document.getElementById("autonomous-trading-status").textContent = "Ошибка запуска автономной торговли.";
+            }
+        });
+    
+        // Остановка автономной торговли
+        document.getElementById("stop-autonomous-trading").addEventListener("click", async () => {
+            try {
+                const response = await fetch("/trading/stop_auto_trade", { method: "POST" });
+                const result = await response.json();
+                document.getElementById("autonomous-trading-status").textContent = result.message || "Автономная торговля остановлена!";
+            } catch (error) {
+                console.error("Ошибка остановки автономной торговли:", error);
+                document.getElementById("autonomous-trading-status").textContent = "Ошибка остановки автономной торговли.";
+            }
+        });
+    </script>
+
+<script>
+    // Подключение к WebSocket
+    const socket = new WebSocket("ws://localhost:8000/ws/trading");
+    
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        updateTradingInterface(data);
+    };
+    
+    function updateTradingInterface(data) {
+        document.getElementById("price").innerText = data.price;
+        document.getElementById("balance").innerText = data.balance;
+    }
+    </script>
+
+</body>
+</html>
