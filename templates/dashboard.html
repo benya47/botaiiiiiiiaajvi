@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Дашборд</title>
+</head>
+<body>
+    <header>
+        <h1>Дашборд</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Главная</a></li>
+                <li><a href="/trading.html">Торговля</a></li>
+                <li><a href="/settings.html">Настройки</a></li>
+                <li><a href="/analysis.html">Анализ</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <!-- Выпадающий список монет -->
+        <section>
+            <h2>Выбор монеты</h2>
+            <select id="coin-selector" style="width: 200px;"></select>
+        </section>
+
+        <!-- Таблица данных по монетам -->
+        <section>
+            <h2>Таблица данных по монетам</h2>
+            <table id="market-data">
+                <thead>
+                    <tr>
+                        <th>Пара</th>
+                        <th>Последняя цена</th>
+                        <th>Изменение</th>
+                        <th>Объем</th>
+                        <th>Прогноз</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <!-- Таблица с историческими данными Kline -->
+        <section>
+            <h2>Исторические данные Kline</h2>
+            <table id="kline-table">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Открытие</th>
+                        <th>Максимум</th>
+                        <th>Минимум</th>
+                        <th>Закрытие</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <!-- Свечной график -->
+        <section>
+            <h2>Свечной график</h2>
+            <div id="chart-container" style="width: 100%; height: 500px;"></div>
+        </section>
+    </main>
+    <footer>
+        <p>© 2023 Торговый Бот</p>
+    </footer>
+
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        const chartContainer = document.getElementById('chart-container');
+        const chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.offsetWidth,
+            height: 500,
+            layout: {
+                backgroundColor: '#ffffff',
+                textColor: '#333',
+            },
+            rightPriceScale: {
+                visible: true, // Включаем правую шкалу цен
+                borderColor: '#D1D4DC', // Цвет границы шкалы
+            },
+            leftPriceScale: {
+                visible: false, // Отключаем левую шкалу цен
+            },
+            timeScale: {
+                borderColor: '#D1D4DC',
+            },
+        });
+
+        // Добавляем свечной график
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#4CAF50',
+            downColor: '#FF5252',
+            borderDownColor: '#FF5252',
+            borderUpColor: '#4CAF50',
+            wickDownColor: '#FF5252',
+            wickUpColor: '#4CAF50',
+            priceScaleId: 'right', // Привязываем к правой шкале
+        });
+
+        // Добавляем график объемов на отдельной шкале
+        const volumeSeries = chart.addHistogramSeries({
+            priceScaleId: '', // Отдельная шкала для объемов
+            color: '#26a69a',
+            scaleMargins: {
+                top: 0.8, // Размещаем объемы внизу
+                bottom: 0,
+            },
+        });
+
+        async function loadChartData(symbol) {
+            try {
+                const response = await fetch(`/dashboard/kline-data?symbol=${symbol}&timeframe=1h&limit=100`);
+                if (!response.ok) throw new Error("Ошибка загрузки данных графика");
+
+                const data = await response.json();
+
+                // Форматируем данные для свечей
+                const formattedCandles = data.ohlcv.map(candle => ({
+                    time: candle[0] / 1000, // Преобразуем в секунды
+                    open: candle[1],
+                    high: candle[2],
+                    low: candle[3],
+                    close: candle[4],
+                }));
+
+                // Форматируем данные для объемов
+                const formattedVolumes = data.ohlcv.map(candle => ({
+                    time: candle[0] / 1000, // Преобразуем в секунды
+                    value: candle[5],
+                    color: candle[4] > candle[1] ? '#4CAF50' : '#FF5252',
+                }));
+
+                // Отображаем данные на графиках
+                candleSeries.setData(formattedCandles);
+                volumeSeries.setData(formattedVolumes);
+            } catch (error) {
+                console.error("Ошибка загрузки данных для графика:", error);
+            }
+        }
+
+        async function loadMarketData(symbol) {
+            try {
+                const response = await fetch(`/dashboard/market-data?symbol=${symbol}`);
+                if (!response.ok) throw new Error("Ошибка загрузки рыночных данных");
+                const data = await response.json();
+                const tableBody = document.querySelector("#market-data tbody");
+
+                tableBody.innerHTML = `
+                    <tr>
+                        <td>${data.symbol || "Неизвестно"}</td>
+                        <td>${data.last || "Недоступно"}</td>
+                        <td>${data.change !== undefined ? (data.change * 100).toFixed(2) + "%" : "Недоступно"}</td>
+                        <td>${data.baseVolume || "Недоступно"}</td>
+                        <td>${data.forecast || "N/A"}</td>
+                    </tr>
+                `;
+            } catch (error) {
+                console.error("Ошибка при загрузке данных рынка:", error);
+            }
+        }
+
+        async function loadKlineTable(symbol) {
+            try {
+                const response = await fetch(`/dashboard/kline-data?symbol=${symbol}&timeframe=1h&limit=100`);
+                if (!response.ok) throw new Error("Ошибка загрузки исторических данных");
+                const data = await response.json();
+                const tableBody = document.querySelector("#kline-table tbody");
+
+                tableBody.innerHTML = data.ohlcv.map(kline => `
+                    <tr>
+                        <td>${new Date(kline[0] * 1000).toLocaleString()}</td>
+                        <td>${kline[1]}</td>
+                        <td>${kline[2]}</td>
+                        <td>${kline[3]}</td>
+                        <td>${kline[4]}</td>
+                    </tr>
+                `).join("");
+            } catch (error) {
+                console.error("Ошибка загрузки данных Kline:", error);
+            }
+        }
+
+        async function loadCoinData(symbol) {
+            try {
+                await Promise.all([loadMarketData(symbol), loadKlineTable(symbol), loadChartData(symbol)]);
+            } catch (error) {
+                console.error(`Ошибка загрузки данных для ${symbol}:`, error);
+            }
+        }
+
+        async function loadCoinList() {
+            try {
+                const response = await fetch("/dashboard/");
+                if (!response.ok) throw new Error("Ошибка загрузки списка монет");
+                const data = await response.json();
+                const marketData = data.market_data || [];
+                const coinSelector = document.getElementById("coin-selector");
+
+                coinSelector.innerHTML = marketData.map(pair =>
+                    `<option value="${pair.symbol}">${pair.symbol}</option>`
+                ).join("");
+
+                if (marketData.length > 0) loadCoinData(marketData[0].symbol);
+            } catch (error) {
+                console.error("Ошибка загрузки списка монет:", error);
+            }
+        }
+
+        document.getElementById('coin-selector').addEventListener('change', event => {
+            loadCoinData(event.target.value);
+        });
+
+        document.addEventListener('DOMContentLoaded', loadCoinList);
+    </script>
+
+    <script>
+        let websocket;
+
+        async function connectWebSocket(symbol) {
+            if (websocket) {
+                websocket.close();
+            }
+            websocket = new WebSocket(`ws://${window.location.host}/dashboard/ws/${symbol}`);
+            websocket.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                if (message.symbol === symbol) {
+                    updateChart(message.data);
+                    updateTable(message.data);
+                }
+            };
+            websocket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            };
+        }
+
+        function updateChart(data) {
+            // Update the chart with real-time data (example placeholder)
+            console.log("Updating chart with data:", data);
+        }
+
+        function updateTable(data) {
+            // Update the table with real-time data (example placeholder)
+            console.log("Updating table with data:", data);
+        }
+
+        document.getElementById('coin-selector').addEventListener('change', function(event) {
+            const selectedSymbol = event.target.value;
+            connectWebSocket(selectedSymbol);
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const initialSymbol = document.getElementById('coin-selector').value;
+            if (initialSymbol) {
+                connectWebSocket(initialSymbol);
+            }
+        });
+    </script>
+    </body>
+    
+</html>

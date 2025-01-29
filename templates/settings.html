@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Настройки</title>
+</head>
+<body>
+    <header>
+        <h1>Настройки</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Главная</a></li>
+                <li><a href="/dashboard.html">Дашборд</a></li>
+                <li><a href="/trading.html">Торговля</a></li>
+                <li><a href="/analysis.html">Анализ</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h2>Выбор монет для анализа</h2>
+            <form id="coin-selection-form">
+                <label for="preset-coins">Предустановленные монеты:</label>
+                <select id="preset-coins" style="width: 100%;">
+                    <option value="BTC/USDT,ETH/USDT">Популярные (BTC, ETH)</option>
+                    <option value="BNB/USDT,XRP/USDT">Альткоины (BNB, XRP)</option>
+                    <option value="DOGE/USDT,SOL/USDT">Трендовые (DOGE, SOL)</option>
+                    <option value="ADA/USDT,DOT/USDT">Платформенные (ADA, DOT)</option>
+                </select>
+                <button type="button" id="apply-preset">Применить</button>
+                <label for="coin-list">Или выберите вручную:</label>
+                <select id="coin-list" multiple size="10" style="width: 100%;"></select>
+                <button type="button" id="save-coins-button">Сохранить выбор</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>Управление данными</h2>
+            <button type="button" id="update-data-button">Обновить данные</button>
+            <div id="update-status"></div>
+        </section>
+
+        <script>
+            document.getElementById('update-data-button').addEventListener('click', async () => {
+                const timeframe = document.getElementById('timeframe').value;
+                const limit = document.getElementById('limit').value;
+        
+                try {
+                    const response = await fetch('/settings/update-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ timeframe, limit })
+                    });
+                    if (!response.ok) throw new Error('Ошибка обновления данных');
+                    const result = await response.json();
+                    document.getElementById('update-status').textContent = result.message || 'Данные обновлены';
+                } catch (error) {
+                    console.error('Ошибка обновления данных:', error);
+                    document.getElementById('update-status').textContent = 'Ошибка обновления данных.';
+                }
+            });
+        </script>
+        
+
+
+
+
+        <script>
+            async function loadAvailableCoins() {
+                try {
+                    const response = await fetch('/analysis/markets');
+                    if (!response.ok) throw new Error('Ошибка загрузки доступных рынков');
+                    const data = await response.json();
+                    const coinList = document.getElementById('coin-list');
+                    coinList.innerHTML = data.markets.map(coin => `
+                        <option value="${coin.symbol}">${coin.symbol}</option>
+                    `).join("");
+                } catch (error) {
+                    console.error('Ошибка загрузки доступных монет:', error);
+                }
+            }
+        
+            document.getElementById('apply-preset').addEventListener('click', () => {
+                const presetCoins = document.getElementById('preset-coins').value.split(',');
+                const coinList = document.getElementById('coin-list');
+                coinList.innerHTML = presetCoins.map(coin => `
+                    <option value="${coin}">${coin}</option>
+                `).join("");
+            });
+        
+            document.getElementById('save-coins-button').addEventListener('click', async () => {
+                const selectedCoins = Array.from(document.getElementById('coin-list').selectedOptions).map(option => option.value);
+                try {
+                    const response = await fetch('/settings/select-coins', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(selectedCoins)
+                    });
+                    const result = await response.json();
+                    document.getElementById('update-status').textContent = result.message || 'Монеты сохранены';
+                } catch (error) {
+                    console.error('Ошибка сохранения монет:', error);
+                }
+            });
+        
+        
+            document.addEventListener('DOMContentLoaded', loadAvailableCoins);
+        </script>
+        
+        <section>
+            <h2>Обновление информации о модели</h2>
+            <button type="button" id="update-model-info">Обновить информацию о модели</button>
+            <div id="update-info-status"></div>
+        </section>
+        
+        <section>
+            <h2>Просмотр параметров обучения</h2>
+            <button type="button" id="view-training-params">Посмотреть параметры обучения</button>
+            <div id="training-params"></div>
+        </section>
+        
+        <section>
+            <h2>Выбор активной модели</h2>
+            <form id="select-active-model-form">
+                <label for="active-model">Выберите модель:</label>
+                <select id="active-model"></select>
+                <button type="button" id="apply-active-model">Установить активную модель</button>
+            </form>
+            <div id="active-model-status"></div>
+        </section>
+        
+        <script>
+            // Обновление информации о модели
+            document.getElementById('update-model-info').addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/settings/update-model-info', { method: 'POST' });
+                    const result = await response.json();
+                    document.getElementById('update-info-status').textContent = result.message || 'Информация обновлена.';
+                } catch (error) {
+                    console.error('Ошибка обновления информации о модели:', error);
+                    document.getElementById('update-info-status').textContent = 'Ошибка обновления информации о модели.';
+                }
+            });
+        
+            // Просмотр параметров обучения
+            document.getElementById('view-training-params').addEventListener('click', async () => {
+                try {
+                      const response = await fetch('/settings/training-params');
+                     const result = await response.json();
+                     const paramsDiv = document.getElementById('training-params');
+                     paramsDiv.innerHTML = `
+                        <p><strong>Имя модели:</strong> ${result.name}</p>
+                        <p><strong>Количество эпох:</strong> ${result.epochs}</p>
+                        <p><strong>Размер батча:</strong> ${result.batch_size}</p>
+                        <p><strong>Стратегия:</strong> ${result.strategy}</p>
+                        <p><strong>Таймфрейм:</strong> ${result.timeframe}</p>
+                        <p><strong>Лимит данных:</strong> ${result.limit}</p>
+                        <p><strong>Монеты:</strong> ${result.coins.join(', ')}</p>
+                    `;
+             } catch (error) {
+             console.error('Ошибка получения параметров обучения:', error);
+           document.getElementById('training-params').textContent = 'Ошибка получения параметров обучения.';
+            }
+             });
+
+        
+            // Выбор активной модели
+            async function loadAvailableModels() {
+                try {
+                    const response = await fetch('/settings/available-models');
+                    const models = await response.json();
+                    const modelSelect = document.getElementById('active-model');
+                    modelSelect.innerHTML = models.map(model => `<option value="${model}">${model}</option>`).join("");
+                } catch (error) {
+                    console.error('Ошибка загрузки списка моделей:', error);
+                }
+            }
+        
+            document.getElementById('apply-active-model').addEventListener('click', async () => {
+                const selectedModel = document.getElementById('active-model').value;
+                try {
+                    const response = await fetch('/settings/set-active-model', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: selectedModel })
+                    });
+                    const result = await response.json();
+                    document.getElementById('active-model-status').textContent = result.message || 'Модель успешно выбрана.';
+                } catch (error) {
+                    console.error('Ошибка выбора активной модели:', error);
+                    document.getElementById('active-model-status').textContent = 'Ошибка выбора активной модели.';
+                }
+            });
+        
+            document.addEventListener('DOMContentLoaded', loadAvailableModels);
+        </script>
+
+        
+
+
+
+
+<script>
+    document.getElementById('show-model-info').addEventListener('click', async () => {
+        try {
+            const response = await fetch('/settings/model-info');
+            if (!response.ok) throw new Error('Ошибка загрузки информации о модели');
+            const data = await response.json();
+            const modelInfoDiv = document.getElementById('model-info');
+            modelInfoDiv.innerHTML = `
+                <p><strong>Имя модели:</strong> ${data.name}</p>
+                <p><strong>Стратегия:</strong> ${data.strategy}</p>
+                <p><strong>Таймфрейм:</strong> ${data.timeframe}</p>
+                <p><strong>Лимит данных:</strong> ${data.limit}</p>
+                <p><strong>Монеты:</strong> ${data.coins.join(', ')}</p>
+            `;
+        } catch (error) {
+            console.error('Ошибка загрузки информации о модели:', error);
+            document.getElementById('model-info').textContent = 'Ошибка загрузки информации о модели.';
+        }
+    });
+</script>
+
+<script>
+    document.getElementById('load-model-button').addEventListener('click', () => {
+        document.getElementById('model-file-input').click();
+    });
+
+    document.getElementById('model-file-input').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);  // Убедимся, что ключ совпадает с параметром в эндпоинте
+                const response = await fetch('/settings/load-model', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка загрузки модели: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                document.getElementById('load-status').textContent = result.message || 'Модель успешно загружена.';
+
+                // Очищаем поле выбора файла, чтобы предотвратить повторное событие change
+                event.target.value = '';
+            } catch (error) {
+                console.error('Ошибка загрузки модели:', error);
+                document.getElementById('load-status').textContent = 'Ошибка загрузки модели.';
+                event.target.value = ''; // Очищаем поле в случае ошибки
+            }
+        }
+    });
+</script>
+
+
+<section>
+    <h2>Выбор типов моделей для анализа</h2>
+    <label for="model-type">Выберите типы моделей:</label>
+    <select id="model-type" multiple style="width: 100%; height: 150px;">
+        <option value="LSTM">LSTM</option>
+        <option value="DQN">DQN</option>
+        <option value="Transformer">Transformer</option>
+        <option value="CNN_LSTM">CNN + LSTM</option>
+        <option value="Autoencoder">Autoencoder</option>
+        <option value="Portfolio">Portfolio Management</option>
+    </select>
+</section>
+
+<section>
+    <h2>Настройки модели</h2>
+    <form id="train-model-form">
+        <label for="strategy">Стратегия:</label>
+        <select id="strategy" style="width: 100%;">
+            <option value="scalping">Скальпинг</option>
+            <option value="martingale">Мартингейл</option>
+            <option value="trend-following">Следование за трендом</option>
+        </select>
+
+        <label for="timeframe">Таймфрейм:</label>
+        <select id="timeframe" style="width: 100%;">
+            <option value="1m">1 минута</option>
+            <option value="5m">5 минут</option>
+            <option value="15m">15 минут</option>
+            <option value="1h">1 час</option>
+        </select>
+
+        <label for="limit">Период данных:</label>
+        <input type="number" id="limit" value="100" min="1" style="width: 100%;">
+
+        <label for="sequence-length">Длина последовательности:</label>
+        <input type="number" id="sequence-length" value="100" min="1" style="width: 100%;">
+
+        <label for="epochs">Эпохи:</label>
+        <input type="number" id="epochs" value="10" min="1" style="width: 100%;">
+
+        <label for="batch-size">Размер батча:</label>
+        <input type="number" id="batch-size" value="32" min="1" style="width: 100%;">
+
+        <label>
+            <input type="checkbox" id="use-tuner"> Использовать Keras Tuner для настройки гиперпараметров
+        </label>
+
+
+        <button type="button" id="train-model-button">Обучить и сохранить</button>
+    </form>
+</section>
+
+
+<script>
+    document.getElementById('train-model-button').addEventListener('click', async () => {
+        const modelTypes = Array.from(document.getElementById('model-type').selectedOptions).map(opt => opt.value);
+        const strategy = document.getElementById('strategy').value;
+
+        const timeframe = document.getElementById('timeframe').value;
+        const limit = Number(document.getElementById('limit').value);
+        const sequenceLength = Number(document.getElementById('sequence-length').value);
+        const epochs = Number(document.getElementById('epochs').value);
+        const batchSize = Number(document.getElementById('batch-size').value);
+
+        const useTuner = document.getElementById('use-tuner').checked; // Читаем значение чекбокса
+
+        try {
+            const response = await fetch('/settings/train', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model_types: modelTypes,
+                    strategy,
+                    timeframe,
+                    limit,
+                    sequence_length: sequenceLength,
+                    epochs,
+                    batch_size: batchSize,
+                    use_tuner: useTuner // Передаем значение на сервер
+                })
+            });
+            const result = await response.json();
+            alert(result.message);
+        } catch (error) {
+            console.error('Ошибка обучения модели:', error);
+            alert('Ошибка обучения модели.');
+        }
+    });
+</script>
+
+    </main>
+    <footer>
+        <p>© 2023 Торговый Бот</p>
+    </footer>
+</body>
+</html>

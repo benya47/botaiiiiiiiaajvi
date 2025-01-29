@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Анализ</title>
+</head>
+<body>
+    <header>
+        <h1>Анализ</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Главная</a></li>
+                <li><a href="/dashboard.html">Дашборд</a></li>
+                <li><a href="/trading.html">Торговля</a></li>
+                <li><a href="/settings.html">Настройки</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h2>Информация о модели</h2>
+            <div id="model-info"></div>
+        </section>
+        <section>
+            <h2>Выбор пары для анализа</h2>
+            <select id="active-pair"></select>
+        </section>
+        <section>
+            <h2>График с сигналами</h2>
+            <div id="chart-container" style="width: 100%; height: 500px;"></div>
+        </section>
+    </main>
+    <footer>
+        <p>© 2023 Торговый Бот</p>
+    </footer>
+
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        
+        let historicalData = [];
+        
+        
+    document.addEventListener("DOMContentLoaded", async () => {
+        const websocket = new WebSocket("ws://" + window.location.host + "/ws/analysis");
+
+
+websocket.onmessage = (event) => {
+    console.log("Получены данные через WebSocket:", event.data);
+    const message = JSON.parse(event.data);
+    const formattedTime = Math.floor(message.time / 1000);
+
+    if (Array.isArray(message)) {
+        console.log("Получен массив данных WebSocket:", message);
+        historicalData = message.map((c) => ({
+            time: Math.floor(c.time / 1000), // Преобразуем время в секунды
+            open: parseFloat(c.open),
+            high: parseFloat(c.high),
+            low: parseFloat(c.low),
+            close: parseFloat(c.close),
+            volume: parseFloat(c.volume),
+        }));
+        candleSeries.setData(historicalData);
+        volumeSeries.setData(
+            historicalData.map((c) => ({
+                time: c.time,
+                value: c.volume,
+                color: c.close > c.open ? '#4CAF50' : '#FF5252',
+            }))
+        );
+    } else if (message.time) {
+        console.log("Получены новые данные WebSocket:", message);
+        const formattedTime = Math.floor(message.time / 1000);
+        const newCandle = {
+            time: formattedTime,
+            open: parseFloat(message.open),
+            high: parseFloat(message.high),
+            low: parseFloat(message.low),
+            close: parseFloat(message.close),
+            volume: parseFloat(message.volume),
+        };
+
+        historicalData.push(newCandle);
+        if (historicalData.length > 100) historicalData.shift();
+
+        console.log("Данные для обновления графика:", message);
+
+        candleSeries.update(newCandle);
+        volumeSeries.update({
+            time: formattedTime,
+            value: newCandle.volume,
+            color: newCandle.close > newCandle.open ? '#4CAF50' : '#FF5252',
+        });
+    } else {
+        console.error("Неверный формат данных WebSocket:", message);
+    }
+};
+
+
+
+const pairSelect = document.getElementById("active-pair");
+const modelInfoDiv = document.getElementById("model-info");
+const chartContainer = document.getElementById("chart-container");
+
+            // Инициализация графика
+            const chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.offsetWidth,
+                height: 500,
+                layout: {
+                    backgroundColor: '#FFFFFF',
+                    textColor: '#000000',
+                },
+                rightPriceScale: {
+                    scaleMargins: { top: 0.1, bottom: 0.3 },
+                },
+                timeScale: { borderColor: '#D1D4DC' },
+            });
+
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#4CAF50',
+                downColor: '#FF5252',
+                borderUpColor: '#4CAF50',
+                borderDownColor: '#FF5252',
+                wickUpColor: '#4CAF50',
+                wickDownColor: '#FF5252',
+            });
+
+            const volumeSeries = chart.addHistogramSeries({
+                priceScaleId: '',
+                scaleMargins: { top: 0.7, bottom: 0 },
+                color: '#26a69a',
+            });
+
+            async function loadModelInfo() {
+                try {
+                    const response = await fetch("/analysis/get-model-info");
+                    if (!response.ok) throw new Error("Ошибка загрузки информации о модели");
+                    const data = await response.json();
+
+                    modelInfoDiv.innerHTML = `
+                        <p><strong>Имя модели:</strong> ${data.name}</p>
+                        <p><strong>Стратегия:</strong> ${data.strategy}</p>
+                        <p><strong>Таймфрейм:</strong> ${data.timeframe}</p>
+                        <p><strong>Монеты:</strong> ${data.coins.join(", ")}</p>
+                    `;
+
+                    pairSelect.innerHTML = data.coins.map(
+                        coin => `<option value="${coin}">${coin}</option>`
+                    ).join("");
+
+                    if (data.coins.length > 0) loadPairData(data.coins[0]);
+                } catch (error) {
+                    console.error("Ошибка загрузки информации о модели:", error);
+                    modelInfoDiv.innerHTML = `<p style="color: red;">Ошибка: ${error.message}</p>`;
+                }
+            }
+
+
+
+
+async function loadPairData(pair) {
+    if (!pair) {
+        console.error("Не указана торговая пара.");
+        return;
+    }
+    try {
+        const response = await fetch(`/analysis/get-signals?pair=${encodeURIComponent(pair)}`);
+        if (!response.ok) throw new Error(`Ошибка загрузки данных Kline: ${response.status}`);
+        const data = await response.json();
+
+        // Инициализация historicalData, чтобы WebSocket мог работать с массивом
+        historicalData = data.ohlcv.map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume,
+        }));
+        candleSeries.setData(historicalData);
+        volumeSeries.setData(
+            historicalData.map(c => ({
+                time: c.time,
+                value: c.volume,
+                color: c.close > c.open ? '#4CAF50' : '#FF5252',
+            }))
+        );
+
+        // Сигналы и маркеры
+        candleSeries.setMarkers(data.signals.map(signal => ({
+            time: signal.time,
+            position: signal.position,
+            color: signal.color,
+            shape: signal.shape,
+            text: signal.text,
+        })));
+    } catch (error) {
+        console.error(`Ошибка загрузки данных для пары ${pair}:`, error);
+    }
+}
+
+
+
+
+
+
+            pairSelect.addEventListener("change", (e) => loadPairData(e.target.value));
+            loadModelInfo();
+        });
+    </script>
+</body>
+</html>
